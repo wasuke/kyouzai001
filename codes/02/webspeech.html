@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>音声文字起こし</title>
+</head>
+
+<body>
+  <h1>音声文字起こし</h1>
+  <p>
+    「録音開始」を押して、マイクに向かって話してください。
+  </p>
+  <button id="recBtn">🎙 録音開始</button>
+  <h2>認識結果</h2>
+  <textarea id="text"></textarea>
+  <div id="status">
+    状態：待機中
+  </div>
+<script>
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+const recBtn = document.getElementById("recBtn");
+const textArea = document.getElementById("text");
+const statusEl = document.getElementById("status");
+
+// Web Speech API が使えるか確認
+if (!SpeechRecognition) {
+  statusEl.textContent =
+    "このブラウザは音声認識に対応していません。";
+  recBtn.disabled = true;
+} else {
+  const recognition = new SpeechRecognition();
+  // 日本語
+  recognition.lang = "ja-JP";
+  // 途中結果も取得
+  recognition.interimResults = true;
+  // 継続して認識
+  recognition.continuous = true;
+  // 録音開始
+  recognition.onstart = () => {
+    statusEl.textContent =
+      "状態：録音中";
+    recBtn.textContent =
+      "■ 録音停止";
+  };
+  // 音声認識結果
+  recognition.onresult = (event) => {
+    let finalText = "";
+    let interimText = "";
+    for (
+      let i = event.resultIndex;
+      i < event.results.length;
+      i++
+    ) {
+      const transcript =
+        event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalText += transcript;
+      } else {
+        interimText += transcript;
+      }
+    }
+    // 確定した文章を追加
+    if (finalText) {
+      textArea.value += finalText + "\n";
+    }
+    // 途中結果は状態欄に表示
+    if (interimText) {
+      statusEl.textContent =
+        "認識中：" + interimText;
+    }
+  };
+  // 録音終了
+  recognition.onend = () => {
+    statusEl.textContent =
+      "状態：待機中";
+    recBtn.textContent =
+      "🎙 録音開始";
+  };
+  // エラー
+  recognition.onerror = (event) => {
+    statusEl.textContent =
+      "エラー：" + event.error;
+  };
+  let recording = false;
+  // ボタン
+  recBtn.addEventListener("click", () => {
+    if (!recording) {
+      recognition.start();
+      recording = true;
+    } else {
+      recognition.stop();
+      recording = false;
+    }
+  });
+}
+</script>
+</body>
+</html>
