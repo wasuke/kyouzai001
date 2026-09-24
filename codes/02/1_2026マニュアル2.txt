@@ -1,0 +1,10 @@
+マニュアル
+
+０　インストール関係
+https://drive.google.com/file/d/1g6bmdTpmjVyzguJVxlYPIxPm19AY0UDc/view?usp=sharing
+
+１　VoiceVoxを喋らせよう
+https://drive.google.com/file/d/1UuZ2e7qQ_7vgshRwKLiS3TFQsMhpRiHy/view?usp=sharing
+
+2　音声認識AIを使おう
+https://drive.google.com/file/d/1khmTvbcxuYm5VR54sogwnT-Fi1BBoDTc/view?usp=sharing
