@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Web Speech API ＋ VOICEVOX</title>
+</head>
+
+<body>
+    <h1>あなたの言葉を代理発話するデモ</h1>
+    <p>
+        手順：<br>
+        ①「録音開始」を押して話す（マイク権限が必要です）<br>
+        ②認識されたテキストが下の欄に表示されます<br>
+        ③自動的にVOICEVOXが同じセリフをしゃべります
+    </p>
+
+    <label for="text">認識されたテキスト（編集もできます）：</label><br>
+    <textarea id="text" rows="4" cols="50">こんにちは。VoiceVoxです。</textarea><br>
+
+    <div style="margin-top:10px;">
+        <label for="speaker">話者番号：</label>
+        <input type="number" id="speaker" value="1" min="1" max="50">
+    </div>
+
+    <div style="margin-top:10px;">
+        <button id="recBtn">🎙 録音開始</button>
+        <button id="speakBtn">▶ テキストをしゃべらせる</button>
+    </div>
+
+    <div id="status">状態：待機中</div>
+    <div id="log" style="white-space: pre-line;"></div>
+
+    <audio id="audioPlayer" controls style="margin-top:15px; width:100%;"></audio>
+    <script>
+ // ======= Web Speech API（音声認識）設定 =======
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  const recBtn   = document.getElementById("recBtn");
+  const speakBtn = document.getElementById("speakBtn");
+  const textArea = document.getElementById("text");
+  const statusEl = document.getElementById("status");
+  const logEl    = document.getElementById("log");
+  const audioEl  = document.getElementById("audioPlayer");
+  let recognition = null;
+  let recognizing = false;
+
+  if (!SpeechRecognition) {
+    statusEl.textContent = "状態：このブラウザは音声認識（Web Speech API）に対応していません。";
+    recBtn.disabled = true;
+  } else {
+    recognition = new SpeechRecognition();
+    recognition.lang = "ja-JP";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      recognizing = true;
+      statusEl.textContent = "状態：録音中…話してください";
+      recBtn.textContent = "■ 入力を廃棄して録音停止";
+    };
+
+    recognition.onend = () => {
+      recognizing = false;
+      statusEl.textContent = "状態：待機中";
+      recBtn.textContent = "🎙 録音開始";
+    };
+
+    recognition.onerror = (event) => {
+      log("音声認識エラー：" + event.error);
+      recognizing = false;
+      statusEl.textContent = "状態：エラーが発生しました（コンソール・ログを参照）";
+      recBtn.textContent = "🎙 録音開始";
+    };
+
+    recognition.onresult = async (event) => {
+      const result = event.results[0][0];
+      const transcript = result.transcript;
+      const confidence = result.confidence;
+      textArea.value = transcript;
+      log("認識結果：" + transcript + "\n信頼度：" + confidence.toFixed(2));
+      // 認識されたテキストをそのままVOICEVOXで発話
+      speakWithVoiceVox(transcript);
+    };
+  }
+
+  recBtn.addEventListener("click", () => {
+    if (!recognition) return;
+    if (!recognizing) {
+      // 録音開始
+      recognition.start();
+    } else {
+      // 明示的に停止
+      recognition.stop();
+    }
+  });
+  // ======= VOICEVOX ローカルエンジン呼び出し =======
+  async function speakWithVoiceVox(text) {
+    const speaker = document.getElementById("speaker").value || 1;
+
+    try {
+      statusEl.textContent = "状態：VOICEVOXで合成中…";
+
+      // ① audio_query
+      const queryRes = await fetch(
+        `http://127.0.0.1:50021/audio_query?text=${encodeURIComponent(text)}&speaker=${encodeURIComponent(speaker)}`,
+        { method: "POST" }
+      );
+      if (!queryRes.ok) {
+        throw new Error("audio_queryに失敗しました：" + queryRes.status);
+      }
+      const queryJson = await queryRes.json();
+
+      // ② synthesis
+      const audioRes = await fetch(
+        `http://127.0.0.1:50021/synthesis?speaker=${encodeURIComponent(speaker)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(queryJson)
+        }
+      );
+      if (!audioRes.ok) {
+        throw new Error("synthesisに失敗しました：" + audioRes.status);
+      }
+
+    const blob = await audioRes.blob();
+    const url = URL.createObjectURL(blob);
+    audioEl.src = url;
+    try {
+        await audioEl.play();
+        statusEl.textContent = "状態：再生中";
+    } catch (e) {
+        console.warn("自動再生がブロックされました", e);
+        statusEl.textContent = "状態：音声は生成されました（下の再生ボタンを押してください）";
+    }
+
+    } catch (e) {
+      console.error(e);
+      log("VOICEVOXエラー：" + e.message);
+      statusEl.textContent = "状態：エラー（VOICEVOXエンジンが起動しているか確認してください）";
+      alert("音声生成に失敗しました。\nVOICEVOXエンジンが起動しているか、ポート番号が正しいか確認してください。");
+    }
+  }
+
+  // 手動でテキストをしゃべらせるボタン
+  speakBtn.addEventListener("click", () => {
+    const text = textArea.value.trim();
+    if (!text) {
+      alert("テキストが空です。");
+      return;
+    }
+    speakWithVoiceVox(text);
+  });
+
+  function log(msg) {
+    const now = new Date().toLocaleTimeString();
+    logEl.textContent += `[${now}] ${msg}\n`;
+  }
+    </script>
+</body>
+</html>
